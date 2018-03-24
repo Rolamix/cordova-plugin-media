@@ -25,7 +25,9 @@ import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaPlayer.OnErrorListener;
 import android.media.MediaPlayer.OnPreparedListener;
 import android.media.MediaRecorder;
+import android.media.PlaybackParams;
 import android.os.Environment;
+import android.os.Build;
 
 import org.apache.cordova.LOG;
 
@@ -149,6 +151,8 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             this.recorder.release();
             this.recorder = null;
         }
+        // Tell the handler to let go of wifi
+        this.handler.releaseWifiLock();
     }
 
     /**
@@ -353,9 +357,14 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             this.setState(STATE.MEDIA_PAUSED);
         }
         else {
+          try {
+            this.player.pause();
+            this.setState(STATE.MEDIA_PAUSED);
+          } catch (Exception e) {
             String errorMessage = "AudioPlayer Error: pausePlaying() called during invalid state: " + this.state.ordinal();
             LOG.d(LOG_TAG, errorMessage);
             sendErrorStatus(MEDIA_ERR_NONE_ACTIVE, errorMessage);
+          }
         }
     }
 
@@ -580,6 +589,28 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     }
 
     /**
+     * Set the rate for audio player
+     *
+     * @param rate
+     */
+    public float setRate(float rate) {
+        if (this.player != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PlaybackParams params = new PlaybackParams();
+                params.setSpeed(rate);
+                player.setPlaybackParams(params);
+                return player.getPlaybackParams().getSpeed();
+            }
+        } else {
+            LOG.d(LOG_TAG, "AudioPlayer Error: Cannot set volume until the audio file is initialized.");
+            sendErrorStatus(MEDIA_ERR_NONE_ACTIVE);
+        }
+
+        return 0f;
+    }
+
+
+    /**
      * attempts to put the player in play mode
      * @return true if in playmode, false otherwise
      */
@@ -679,6 +710,7 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     private void loadAudioFile(String file) throws IllegalArgumentException, SecurityException, IllegalStateException, IOException {
         if (this.isStreaming(file)) {
             this.player.setDataSource(file);
+            this.handler.acquireWakeLock(this.player);
             this.player.setAudioStreamType(AudioManager.STREAM_MUSIC);
             //if it's a streaming file, play mode is implied
             this.setMode(MODE.PLAY);
@@ -686,31 +718,30 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             this.player.setOnPreparedListener(this);
             this.player.setOnBufferingUpdateListener(this);
             this.player.prepareAsync();
-        }
-        else {
+        } else {
             if (file.startsWith("/android_asset/")) {
                 String f = file.substring(15);
                 android.content.res.AssetFileDescriptor fd = this.handler.cordova.getActivity().getAssets().openFd(f);
                 this.player.setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength());
-            }
-            else {
+            } else {
                 File fp = new File(file);
                 if (fp.exists()) {
                     FileInputStream fileInputStream = new FileInputStream(file);
                     this.player.setDataSource(fileInputStream.getFD());
                     fileInputStream.close();
-                }
-                else {
+                } else {
                     this.player.setDataSource(Environment.getExternalStorageDirectory().getPath() + "/" + file);
                 }
             }
-                this.setState(STATE.MEDIA_STARTING);
-                this.player.setOnPreparedListener(this);
-                this.player.prepare();
 
-                // Get duration
-                this.duration = getDurationInSeconds();
-            }
+            this.setState(STATE.MEDIA_STARTING);
+            this.handler.acquireWakeLock(this.player);
+            this.player.setOnPreparedListener(this);
+            this.player.prepare();
+
+            // Get duration
+            this.duration = getDurationInSeconds();
+        }
     }
 
     private void sendErrorStatus(int errorCode) {
