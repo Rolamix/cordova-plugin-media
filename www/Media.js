@@ -220,6 +220,28 @@ Media.prototype.getBufferedPercentAudio = function(success, fail) {
     }, fail, "Media", "getBufferedPercentAudio", [this.id]);
 };
 
+/**
+ *
+ * Tell the native player that playback is officially ended
+ * so that ongoing any resources can be cleaned up.
+ * For Android, this releases the background Wifi lock that maintains streaming.
+ * For iOS, this releases the background task that keeps the player alive between songs.
+ */
+Media.prototype.beginKeepAlive = function (success, fail) {
+  exec(success, fail, "Media", "beginKeepAlive", [this.id]);
+};
+
+/**
+ *
+ * Tell the native player that playback is officially ended
+ * so that ongoing any resources can be cleaned up.
+ * For Android, this releases the background Wifi lock that maintains streaming.
+ * For iOS, this releases the background task that keeps the player alive between songs.
+ */
+Media.prototype.endKeepAlive = function (success, fail) {
+  exec(success, fail, "Media", "endKeepAlive", [this.id]);
+};
+
 
 /**
  * Audio has status update.

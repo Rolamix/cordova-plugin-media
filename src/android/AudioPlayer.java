@@ -152,7 +152,7 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             this.recorder = null;
         }
         // Tell the handler to let go of wifi
-        this.handler.releaseWifiLock();
+        this.handler.endKeepAlive("track");
     }
 
     /**
@@ -710,7 +710,7 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     private void loadAudioFile(String file) throws IllegalArgumentException, SecurityException, IllegalStateException, IOException {
         if (this.isStreaming(file)) {
             this.player.setDataSource(file);
-            this.handler.acquireWakeLock(this.player);
+            this.handler.beginKeepAlive(this.player);
             this.player.setAudioStreamType(AudioManager.STREAM_MUSIC);
             //if it's a streaming file, play mode is implied
             this.setMode(MODE.PLAY);
@@ -735,7 +735,7 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             }
 
             this.setState(STATE.MEDIA_STARTING);
-            this.handler.acquireWakeLock(this.player);
+            this.handler.beginKeepAlive(this.player);
             this.player.setOnPreparedListener(this);
             this.player.prepare();
 
