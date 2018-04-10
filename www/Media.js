@@ -193,11 +193,11 @@ Media.prototype.setVolume = function(volume) {
 /**
  * Adjust the playback rate.
  */
-Media.prototype.setRate = function(rate, callback) {
-    if (cordova.platformId === 'ios' || cordova.platformId === 'android') {
-      exec(callback, null, "Media", "setRate", [this.id, rate]);
+Media.prototype.setRate = function(rate) {
+    if (cordova.platformId === 'ios'){
+        exec(null, null, "Media", "setRate", [this.id, rate]);
     } else {
-      console.warn('media.setRate method is currently not supported for', cordova.platformId, 'platform.');
+        console.warn('media.setRate method is currently not supported for', cordova.platformId, 'platform.');
     }
 };
 
@@ -218,28 +218,6 @@ Media.prototype.getBufferedPercentAudio = function(success, fail) {
     exec(function(p) {
         success(p);
     }, fail, "Media", "getBufferedPercentAudio", [this.id]);
-};
-
-/**
- *
- * Tell the native player that playback is officially ended
- * so that ongoing any resources can be cleaned up.
- * For Android, this releases the background Wifi lock that maintains streaming.
- * For iOS, this releases the background task that keeps the player alive between songs.
- */
-Media.prototype.beginKeepAlive = function (success, fail) {
-  exec(success, fail, "Media", "beginKeepAlive", [this.id]);
-};
-
-/**
- *
- * Tell the native player that playback is officially ended
- * so that ongoing any resources can be cleaned up.
- * For Android, this releases the background Wifi lock that maintains streaming.
- * For iOS, this releases the background task that keeps the player alive between songs.
- */
-Media.prototype.endKeepAlive = function (success, fail) {
-  exec(success, fail, "Media", "endKeepAlive", [this.id]);
 };
 
 

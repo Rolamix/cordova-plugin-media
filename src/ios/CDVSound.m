@@ -33,7 +33,7 @@ static char kTimeRangesKVO;
 
 BOOL keepAvAudioSessionAlwaysActive = NO;
 
-@synthesize soundCache, avSession, currMediaId, statusCallbackId, currentVolume, updateTimer;
+@synthesize soundCache, avSession, currMediaId, statusCallbackId, currentVolume;
 
 -(void) pluginInitialize
 {
@@ -47,182 +47,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
             }
         }
     }
-
-    // backgroundTimerCurrentValue = 0;
-    isActive = NO;
-    backgroundMusicStoppedCount = 0;
-    backgroundTask = UIBackgroundTaskInvalid;
-    self.updateTimer = nil;
-
-    [self observeLifeCycle];
-}
-
-/**
- * Register the listener for pause and resume events.
- */
-- (void) observeLifeCycle
-{
-    NSNotificationCenter* listener = [NSNotificationCenter defaultCenter];
-
-    // Instead of using these, we will simply keep the backround task running
-    // as long as a song is playing.
-
-    // [listener addObserver:self
-    //              selector:@selector(handleEnterBackground)
-    //                  name:UIApplicationDidEnterBackgroundNotification
-    //                object:nil];
-
-    // [listener addObserver:self
-    //              selector:@selector(stopKeepingAwake)
-    //                  name:UIApplicationWillEnterForegroundNotification
-    //                object:nil];
-
-    [listener addObserver:self
-                 selector:@selector(handleAudioSessionInterruption:)
-                     name:AVAudioSessionInterruptionNotification
-                   object:nil];
-}
-
-// - (void)handleEnterBackground:(NSNotification*)notification
-// {
-//   [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
-// }
-
-//- (void)remoteControlReceivedWithEvent:(UIEvent *)theEvent {
-//
-//    if (theEvent.type == UIEventTypeRemoteControl)  {
-//        switch(theEvent.subtype)        {
-//            case UIEventSubtypeRemoteControlPlay:
-//                [[NSNotificationCenter defaultCenter] postNotificationName:@"TogglePlayPause" object:nil];
-//                break;
-//            case UIEventSubtypeRemoteControlPause:
-//                [[NSNotificationCenter defaultCenter] postNotificationName:@"TogglePlayPause" object:nil];
-//                break;
-//            case UIEventSubtypeRemoteControlStop:
-//                break;
-//            case UIEventSubtypeRemoteControlTogglePlayPause:
-//                [[NSNotificationCenter defaultCenter] postNotificationName:@"TogglePlayPause" object:nil];
-//                break;
-//            default:
-//                return;
-//        }
-//    }
-//}
-
-- (void)startKeepAwake
-{
-  NSLog(@"startKeepAwake");
-  backgroundMusicStoppedCount = 0;
-
-  if (backgroundTask != UIBackgroundTaskInvalid && self.updateTimer != nil) {
-    return;
-  }
-
-  backgroundTask = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
-      [self stopKeepingAwake];
-  }];
-
-  // This is the only place we can create the update timer.
-  // It MUST be created on the foreground thread in order to keep firing using the background task.
-  self.updateTimer = [NSTimer scheduledTimerWithTimeInterval:30.0
-                                                      target:self
-                                                    selector:@selector(backgroundTimerTick)
-                                                    userInfo:nil
-                                                     repeats:true];
-}
-
-- (void) backgroundTimerTick
-{
-  NSTimeInterval backgroundTimeRemaining = [[UIApplication sharedApplication] backgroundTimeRemaining];
-
-  if (backgroundTimeRemaining == DBL_MAX) {
-      NSLog(@"Background Time Remaining = Undetermined");
-  } else {
-      NSLog(@"Background Time Remaining = %0.2f sec.", backgroundTimeRemaining);
-  }
-
-  NSLog(@"backgroundMusicStoppedCount: %ld", backgroundMusicStoppedCount);
-  if (self.avSession == nil || ![self isPlayingOrRecording]) {
-    backgroundMusicStoppedCount++;
-
-    // This handles the case where a consumer does not properly call endKeepAlive, but also
-    // where unexpected errors end playback but we have not caught them.
-    if (backgroundMusicStoppedCount >= 3) {
-      [self stopKeepingAwake];
-    }
-  } else {
-    // Stop and restart the task. For a tiny period, the background task is not running.
-    // However, in this case, the music IS running, which keeps the app alive.
-    // So we quickly hand off to a new task. The point here is to avoid the task expiring,
-    // while ticking the timer with enough granularity that it catches stopped playback.
-    UIBackgroundTaskIdentifier newTaskid = [[UIApplication sharedApplication] beginBackgroundTaskWithExpirationHandler:^{
-        [self stopKeepingAwake];
-    }];
-
-    if (backgroundTask != UIBackgroundTaskInvalid) {
-      [[UIApplication sharedApplication] endBackgroundTask:backgroundTask];
-    }
-
-    backgroundTask = newTaskid;
-  }
-
-}
-
-- (void) stopKeepingAwake
-{
-  NSLog(@"stopKeepingAwake");
-  backgroundMusicStoppedCount = 0;
-
-  if (self.updateTimer != nil) {
-    [self.updateTimer invalidate];
-  }
-
-  // this function is only responsible for stopping the task and the timer
-  if (backgroundTask != UIBackgroundTaskInvalid) {
-    [[UIApplication sharedApplication] endBackgroundTask:backgroundTask];
-  }
-
-  self.updateTimer = nil;
-  backgroundTask = UIBackgroundTaskInvalid;
-}
-
-/**
- * Disable the background mode
- * and stop being active in background.
- */
-- (void)endKeepAlive:(CDVInvokedUrlCommand*)command
-{
-    NSLog(@"endKeepAlive");
-
-    // We would expect audio to not be playing at this point; but since it might be,
-    // stopPlayingAudio will gracefully handle both cases.
-    [self stopPlayingAudio:command];
-
-    if (self.avSession && ![self isPlayingOrRecording]) {
-        [self.avSession setActive:NO error:nil];
-        self.avSession = nil;
-        NSLog(@"endKeepAlive -> avSession deactivated");
-    }
-
-    [self stopKeepingAwake];
-
-    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
-}
-
-/**
- * Restart playing sound when interrupted by phone calls.
- */
-- (void) handleAudioSessionInterruption:(NSNotification*)notification
-{
-  // Restart playback, if it was paused.
-  if (!isActive) {
-    return;
-  }
-
-  if (avPlayer.currentItem && avPlayer.currentItem.asset) {
-    [avPlayer play];
-  }
 }
 
 // Maps a url for a resource path for recording
@@ -535,9 +359,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
             }
 
             [[self soundCache] setObject:audioFile forKey:mediaId];
-
-            CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDouble:audioFile.player.rate];
-            [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
         }
     }
 
@@ -577,18 +398,7 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
                 }
 
                 NSString* sessionCategory = bPlayAudioWhenScreenIsLocked ? AVAudioSessionCategoryPlayback : AVAudioSessionCategorySoloAmbient;
-                if (IOS10ANDMORE) {
-                  [self.avSession setCategory:sessionCategory
-                                         mode:AVAudioSessionModeDefault
-                                  withOptions:AVAudioSessionCategoryOptionAllowBluetoothA2DP | AVAudioSessionCategoryOptionAllowBluetooth
-                                        error:&err];
-                } else {
-                  [self.avSession setCategory:sessionCategory
-                                         mode:AVAudioSessionModeDefault
-                                  withOptions:AVAudioSessionCategoryOptionAllowBluetooth
-                                        error:&err];
-                }
-
+                [self.avSession setCategory:sessionCategory error:&err];
                 if (![self.avSession setActive:YES error:&err]) {
                     // other audio with higher priority that does not allow mixing could cause this to fail
                     NSLog(@"Unable to play audio: %@", [err localizedFailureReason]);
@@ -614,7 +424,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
                     } else {
                         NSLog(@"Playing stream with AVPlayer & default rate");
                         [avPlayer play];
-                        isActive = YES;
                     }
 
                 } else {
@@ -639,14 +448,11 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
                     }
 
                     [audioFile.player play];
-                    isActive = YES;
                     duration = round(audioFile.player.duration * 1000) / 1000;
                 }
 
                 [self onStatus:MEDIA_DURATION mediaId:mediaId param:@(duration)];
                 [self onStatus:MEDIA_STATE mediaId:mediaId param:@(MEDIA_RUNNING)];
-
-                [self startKeepAwake];
             }
         }
         if (bError) {
@@ -726,13 +532,7 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
 
 - (void)stopPlayingAudio:(CDVInvokedUrlCommand*)command
 {
-    isActive = NO;
-
     NSString* mediaId = [command argumentAtIndex:0];
-    if (mediaId == nil) {
-      return;
-    }
-
     CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
 
     if ((audioFile != nil) && (audioFile.player != nil)) {
@@ -742,7 +542,7 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
         [self onStatus:MEDIA_STATE mediaId:mediaId param:@(MEDIA_STOPPED)];
     }
     // seek to start and pause
-    if (avPlayer != null && avPlayer.currentItem && avPlayer.currentItem.asset) {
+    if (avPlayer.currentItem && avPlayer.currentItem.asset) {
         BOOL isReadyToSeek = (avPlayer.status == AVPlayerStatusReadyToPlay) && (avPlayer.currentItem.status == AVPlayerItemStatusReadyToPlay);
         if (isReadyToSeek) {
             [avPlayer seekToTime: kCMTimeZero
@@ -756,9 +556,8 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
             // cannot seek, wrong state
             CDVMediaError errcode = MEDIA_ERR_NONE_ACTIVE;
             NSString* errMsg = @"Cannot service stop request until the avPlayer is in 'AVPlayerStatusReadyToPlay' state.";
-            [self onStatus:MEDIA_ERROR mediaId:mediaId
-                     param: [self createMediaErrorWithCode:errcode
-                                                   message:errMsg]];
+            [self onStatus:MEDIA_ERROR mediaId:mediaId param:
+              [self createMediaErrorWithCode:errcode message:errMsg]];
         }
     }
 }
@@ -778,8 +577,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
 
         [self onStatus:MEDIA_STATE mediaId:mediaId param:@(MEDIA_PAUSED)];
     }
-
-    isActive = NO;
 }
 
 - (void)seekToAudio:(CDVInvokedUrlCommand*)command
@@ -834,7 +631,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
 
 - (void)release:(CDVInvokedUrlCommand*)command
 {
-    isActive = NO;
     NSString* mediaId = [command argumentAtIndex:0];
     //NSString* mediaId = self.currMediaId;
 
@@ -855,7 +651,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
             if (! keepAvAudioSessionAlwaysActive && self.avSession && ! [self isPlayingOrRecording]) {
                 [self.avSession setActive:NO error:nil];
                 self.avSession = nil;
-                NSLog(@"avSession deactivated");
             }
             [[self soundCache] removeObjectForKey:mediaId];
             NSLog(@"Media with id %@ released", mediaId);
@@ -956,7 +751,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
                 if (recordingSuccess) {
                     NSLog(@"Started recording audio sample '%@'", audioFile.resourcePath);
                     [weakSelf onStatus:MEDIA_STATE mediaId:mediaId param:@(MEDIA_RUNNING)];
-                    isActive = YES;
                 }
             }
 
@@ -1018,8 +812,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
         [audioFile.recorder stop];
         // no callback - that will happen in audioRecorderDidFinishRecording
     }
-
-    isActive = NO;
 }
 
 - (void)audioRecorderDidFinishRecording:(AVAudioRecorder*)recorder successfully:(BOOL)flag
@@ -1040,8 +832,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
     if (! keepAvAudioSessionAlwaysActive && self.avSession && ! [self isPlayingOrRecording]) {
         [self.avSession setActive:NO error:nil];
     }
-
-    isActive = NO;
 }
 
 - (void)audioPlayerDidFinishPlaying:(AVAudioPlayer*)player successfully:(BOOL)flag
@@ -1064,14 +854,11 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
      if (! keepAvAudioSessionAlwaysActive && self.avSession && ! [self isPlayingOrRecording]) {
          [self.avSession setActive:NO error:nil];
      }
-
-     isActive = NO;
 }
 
 // It seems this is not called. We will use the status observable instead.
 //- (void)audioPlayerDecodeErrorDidOccur:(AVAudioPlayer*)player error:(NSError*)error
 //{
-//    isActive = NO;
 //    CDVAudioPlayer* aPlayer = (CDVAudioPlayer*)player;
 //    NSString* mediaId = aPlayer.mediaId;
 //    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
@@ -1092,7 +879,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
 -(void)itemDidFinishPlaying:(NSNotification *) notification {
     // Will be called when AVPlayer finishes playing playerItem
     NSString* mediaId = self.currMediaId;
-    isActive = NO;
 
      if (! keepAvAudioSessionAlwaysActive && self.avSession && ! [self isPlayingOrRecording]) {
          [self.avSession setActive:NO error:nil];
@@ -1103,7 +889,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
 -(void)itemStalledPlaying:(NSNotification *) notification {
     // Will be called when playback stalls due to buffer empty
     NSLog(@"Stalled playback");
-    // Do not set isActive = NO; here, we want the OS to retry if we come back.
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath
@@ -1220,11 +1005,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
     }
 
     [[self soundCache] removeAllObjects];
-
-    isActive = NO;
-    [self.avSession setActive:NO error:nil];
-    self.avSession = nil;
-    [self stopKeepingAwake];
 }
 
 - (void)getBufferedPercentAudio:(CDVInvokedUrlCommand*)command
@@ -1275,7 +1055,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
      if ((audioFile != nil) && (audioFile.recorder != nil)) {
          NSLog(@"Resumed recording audio sample '%@'", audioFile.resourcePath);
          [audioFile.recorder record];
-         isActive = YES;
          // no callback - that will happen in audioRecorderDidFinishRecording
          [self onStatus:MEDIA_STATE mediaId:mediaId param:@(MEDIA_RUNNING)];
      }
@@ -1291,7 +1070,6 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
      if ((audioFile != nil) && (audioFile.recorder != nil)) {
          NSLog(@"Paused recording audio sample '%@'", audioFile.resourcePath);
          [audioFile.recorder pause];
-         isActive = NO;
          // no callback - that will happen in audioRecorderDidFinishRecording
          [self onStatus:MEDIA_STATE mediaId:mediaId param:@(MEDIA_PAUSED)];
      }

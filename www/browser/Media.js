@@ -59,7 +59,7 @@ var Media = function(src, successCallback, errorCallback, statusCallback) {
 /**
  * Creates new Audio node and with necessary event listeners attached
  * @param  {Media} media Media object
- * @return {Audio}       Audio element
+ * @return {Audio}       Audio element 
  */
 function createNode (media) {
     var node = new Audio();
@@ -232,8 +232,7 @@ Media.prototype.setRate = function() {
  */
 Media.prototype.release = function() {
     try {
-      this.node.src = '';
-      delete this.node;
+        delete this.node;
     } catch (err) {
         Media.onStatus(this.id, Media.MEDIA_ERROR, err);
     }};

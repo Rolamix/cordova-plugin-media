@@ -30,9 +30,6 @@ import android.media.AudioManager;
 import android.media.AudioManager.OnAudioFocusChangeListener;
 import android.net.Uri;
 import android.os.Build;
-import android.os.PowerManager;
-import android.net.wifi.WifiManager;
-import android.net.wifi.WifiManager.WifiLock;
 
 import java.security.Permission;
 import java.util.ArrayList;
@@ -59,18 +56,14 @@ import java.util.HashMap;
 public class AudioHandler extends CordovaPlugin {
 
     public static String TAG = "AudioHandler";
-
     HashMap<String, AudioPlayer> players;  // Audio player object
     ArrayList<AudioPlayer> paused; // Audio players that were paused. Reasons:
     boolean audioFocusLost = false; // paused when audiofocus was lost
     boolean calling = false; // paused when calling
     boolean activityFocusLost = false; // paused when activity got paused
-
-    private PowerManager.WakeLock wakeLock;
-    private WifiManager.WifiLock wifiLock;
-
     private int origVolumeStream = -1;
     private CallbackContext messageChannel;
+
 
     public static String [] permissions = { Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE};
     public static int RECORD_AUDIO = 0;
@@ -167,13 +160,6 @@ public class AudioHandler extends CordovaPlugin {
            } catch (NumberFormatException nfe) {
                //no-op
            }
-        } else if (action.equals("setRate")) {
-            try {
-                float newRate = this.setRate(args.getString(0), Float.parseFloat(args.getString(1)));
-                callbackContext.sendPluginResult(new PluginResult(status, newRate));
-            } catch (NumberFormatException nfe) {
-                //no-op
-            }
         } else if (action.equals("getCurrentPositionAudio")) {
             float f = this.getCurrentPositionAudio(args.getString(0));
             callbackContext.sendPluginResult(new PluginResult(status, f));
@@ -207,12 +193,6 @@ public class AudioHandler extends CordovaPlugin {
             float f = this.getCurrentAmplitudeAudio(args.getString(0));
             callbackContext.sendPluginResult(new PluginResult(status, f));
             return true;
-        } else if (action.equals('beginKeepAlive')) {
-          beginKeepAlive(null);
-        } else if (action.equals("endKeepAlive")) {
-          endKeepAlive();
-          callbackContext.sendPluginResult(new PluginResult(status));
-          return true;
         }
         else { // Unrecognized action.
             return false;
@@ -288,101 +268,9 @@ public class AudioHandler extends CordovaPlugin {
         return null;
     }
 
-    public void beginKeepAlive(AudioPlayer player) {
-      int level = PowerManager.PARTIAL_WAKE_LOCK; // | PowerManager.ACQUIRE_CAUSES_WAKEUP
-
-      if (player == null && wakeLock == null) {
-        wakeLock = ((PowerManager)getService(Context.POWER_SERVICE)).newWakeLock(level, "CDVMediaAudioHandlerBackgroundMode");
-        wakeLock.acquire();
-      } else if (wakeLock == null) {
-        // use the player one
-        // Do NOT release a wake lock here. If a song has stopped while in background,
-        // and we are supposed to play another, dropping the wake lock will put
-        // the device to sleep.
-        player.setWakeMode(getApplicationContext(), level);
-      } // else player = null and we are calling beginKeepAlive(null) again which makes no sense, do nothing.
-
-      releaseWifiLock();
-      wifiLock = ((WifiManager)getService(Context.WIFI_SERVICE))
-                    .createWifiLock(WifiManager.WIFI_MODE_FULL, "CDVMediaAudioHandlerWifiMode");
-      wifiLock.acquire();
-    }
-
-    public void endKeepAlive(String endType) {
-      releaseWifiLock();
-      if (new String("track").equals(endType)) { return; }
-      releaseWakeLock();
-    }
-
     //--------------------------------------------------------------------------
     // LOCAL METHODS
     //--------------------------------------------------------------------------
-
-    /**
-     * The activity referenced by cordova.
-     *
-     * @return The main activity of the app.
-     */
-    Activity getApp() {
-        return cordova.getActivity();
-    }
-
-    /**
-     * Gets the application context from corodva.
-     */
-    private Context getApplicationContext() {
-      return getApp().getApplicationContext();
-    }
-
-    /**
-     * Get the requested system service by name.
-     *
-     * @param name The name of the service.
-     *
-     * @return The service instance.
-     */
-    private Object getService(String name) {
-        return getApp().getSystemService(name);
-    }
-
-    private void releaseWakeLock() {
-        String TAG2 = "AudioHandler.releaseWakeLock(): ";
-
-        if (wakeLock == null) {
-          return;
-        }
-
-        if (wakeLock.isHeld()) {
-          try {
-            wakeLock.release();
-            Log.i(TAG2, "wakeLock released");
-          } catch (Exception e) {
-            Log.e(TAG2, e.getMessage());
-          }
-        }
-        wakeLock = null;
-    }
-
-    /**
-     * Releases the previously acquired wifi lock.
-     */
-    private void releaseWifiLock() {
-        String TAG2 = "AudioHandler.releaseWifiLock(): ";
-
-        if (wifiLock == null) {
-          return;
-        }
-
-        if (wifiLock.isHeld()) {
-          try {
-            wifiLock.release();
-            Log.i(TAG2, "wifiLock released");
-          } catch (Exception e) {
-            Log.e(TAG2, e.getMessage());
-          }
-        }
-        wifiLock = null;
-    }
 
     private AudioPlayer getOrCreatePlayer(String id, String file) {
       return getOrCreatePlayer(id, file, true);
@@ -704,26 +592,6 @@ public class AudioHandler extends CordovaPlugin {
           LOG.e(TAG3,"Unknown Audio Player " + id);
         }
     }
-
-    /**
-     * Set the volume for an audio device
-     *
-     * @param id     The id of the audio player
-     * @param volume Volume to adjust to 0.0f - 1.0f
-     */
-    public float setRate(String id, float rate) {
-        String TAG3 = "AudioHandler.setRate(): Error : ";
-
-        AudioPlayer audio = this.players.get(id);
-        if (audio != null) {
-            return audio.setRate(rate);
-        } else {
-            LOG.e(TAG3, "Unknown Audio Player " + id);
-        }
-
-        return 0f;
-    }
-
 
     private void onFirstPlayerCreated() {
         origVolumeStream = cordova.getActivity().getVolumeControlStream();

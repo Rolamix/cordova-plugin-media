@@ -18,7 +18,6 @@
 #import <Foundation/Foundation.h>
 #import <AudioToolbox/AudioServices.h>
 #import <AVFoundation/AVFoundation.h>
-#import <UIKit/UIKit.h>
 
 #import <Cordova/CDVPlugin.h>
 
@@ -92,19 +91,13 @@ typedef NSUInteger CDVMediaMsg;
     AVPlayer* avPlayer;
     NSString* statusCallbackId;
     NSNumber* currentVolume;
-
-    // NSInteger backgroundTimerCurrentValue;
-    UIBackgroundTaskIdentifier backgroundTask;
-    int backgroundMusicStoppedCount;
-    BOOL isActive;
 }
-
 @property (nonatomic, strong) NSMutableDictionary* soundCache;
 @property (nonatomic, strong) AVAudioSession* avSession;
 @property (nonatomic, strong) NSString* currMediaId;
 @property (nonatomic, strong) NSString* statusCallbackId;
 @property (nonatomic, strong) NSNumber* currentVolume;
-@property (nonatomic, retain) NSTimer* updateTimer;
+@property (nonatomic, strong) id playerStatusObserver;
 
 - (void)startPlayingAudio:(CDVInvokedUrlCommand*)command;
 - (void)pausePlayingAudio:(CDVInvokedUrlCommand*)command;
@@ -125,9 +118,7 @@ typedef NSUInteger CDVMediaMsg;
 - (CDVAudioFile*)audioFileForResource:(NSString*)resourcePath withId:(NSString*)mediaId doValidation:(BOOL)bValidate forRecording:(BOOL)bRecord suppressValidationErrors:(BOOL)bSuppress;
 - (BOOL)prepareToPlay:(CDVAudioFile*)audioFile withId:(NSString*)mediaId;
 - (NSDictionary*)createMediaErrorWithCode:(CDVMediaError)code message:(NSString*)message;
-- (void)startBackgroundTask;
 
-- (void)endKeepAlive:(CDVInvokedUrlCommand*)command; // Deactivates the background mode
 - (void)startRecordingAudio:(CDVInvokedUrlCommand*)command;
 - (void)stopRecordingAudio:(CDVInvokedUrlCommand*)command;
 - (void)getCurrentAmplitudeAudio:(CDVInvokedUrlCommand*)command;

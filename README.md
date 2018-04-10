@@ -21,30 +21,12 @@ description: Record and play audio on the device.
 #         under the License.
 -->
 
-# Changes in this fork
-* Additional events for buffering, duration, volume, and on iOS, warns you when music has stalled
-* Wake lock added on Android, so this now requires that permission
-* Background task added on iOS during playback. The reason for this is that the audio UIBackgroundMode only applies while music is playing; once a song stops, the session ends, even if you try to then play another song. The background task keeps the session alive between songs. This requires no further permissions.
-
-For both Android and iOS, a new pair of functions must be called before and after playing a *playlist*. This is not needed for individual songs:
-
-```
-var m = new Media(...);
-m.beginKeepAlive(success, fail);
-
-... you play songs for awhile....
-
-m.endKeepAlive(success, fail);
-```
-
-On iOS, if you don't call `endKeepAlive` within one minute of ending playback, it will auto-terminate the background task. On Android you must provide the call. (an enhancement would be to add the same timer used by iOS)
-
-
 |AppVeyor|Travis CI|
 |:-:|:-:|
 |[![Build status](https://ci.appveyor.com/api/projects/status/github/apache/cordova-plugin-media?branch=master)](https://ci.appveyor.com/project/ApacheSoftwareFoundation/cordova-plugin-media)|[![Build Status](https://travis-ci.org/apache/cordova-plugin-media.svg?branch=master)](https://travis-ci.org/apache/cordova-plugin-media)|
 
 # cordova-plugin-media
+
 
 This plugin provides the ability to record and play back audio files on a device.
 
